@@ -14,8 +14,14 @@ plain                cipher
 00000001 00100011 -> 11110100 00001011
 
 % cargo run [-d] <init_key> <init_vector> <original_file> <result_file>
-cargo run -d 0111111101 10101010 file1 file2 //decrypts
+cargo run d 0111111101 10101010 file1 file2 //decrypts
+cargo run d 1010000010 10101010 file1 file2
 
+key: 01111_11101
+01111_11101 =p10=> 11111_10011
+[1: 11111] [2: 10011] 
+LS1(11111) => 11111
+LS1(10011) => 00111
 */
 
 struct Crypto {
@@ -207,7 +213,7 @@ fn key_to_bits(key_string: &String) -> u16
         }
     }
     //sixteen_bit.leading_zeros());
-    println!("{:?} -> {:010b}_bin", text_key, sixteen_bit);
+    //println!("{:?} -> {:010b}_bin", text_key, sixteen_bit);
     sixteen_bit
 }
 
@@ -230,7 +236,7 @@ fn vec_to_bits(vec_string: &String) -> u8
             _ => println!("failed to convert vector to bits"),
         }
     }
-    println!("{:?}   -> {:08b}_bin", text_vec, eight_bit);
+    //println!("{:?}   -> {:08b}_bin", text_vec, eight_bit);
     eight_bit
 }
 
@@ -253,29 +259,38 @@ fn permute_ten(init_key_str: String) -> String
     permuted_string
 }
 
-fn circular_left_shift(init_key_str: &String, half: usize) -> u8 
+fn left_shift_one(value: u8) -> u8
+{
+    let mut mask: u8 = 31; //0001 1111
+    let side = (value <<1) | (value >> (5 - 1));
+    
+    return mask & side;
+}
+
+fn circular_left_shift(init_key_str: &String) -> u8
 {
     let mut first_half_str = init_key_str.clone();
     let second_half_str = first_half_str.split_off(5);
 
-    let mut first_half_bits  = 0b0000_0000;
-    let mut second_half_bits = 0b0000_0000;
+    let mut first_half_bits: u8 =  0b0000_0000;
+    let mut second_half_bits: u8 = 0b0000_0000;
 
-    //catch the half we want to work on
-    match half {
-        1 => {
-            println!("performing shift on: {:?}", first_half_str);
-            first_half_bits = vec_to_bits(&first_half_str);
-            first_half_bits = first_half_bits.rotate_left(4);
-            println!("fuck me: {:05b}_bin", first_half_bits);
-            return first_half_bits
-        },
-        2 => {
-            println!("performing shift on: {:?}", second_half_str);
-        },
-        _ => println!("invalid half")
-    }
-    162
+    // e.g.: 10000 01100
+    
+    //LS1 on first half: 10000 -> 00001
+    first_half_bits = vec_to_bits(&first_half_str);
+    let first_rotated_bits = left_shift_one(first_half_bits);
+    println!("{:05b} =LS1=> {:05b}_bin", first_half_bits, first_rotated_bits);
+
+    //LS1 on second half: 01100 -> 11000
+    second_half_bits = vec_to_bits(&second_half_str);
+    let second_rotated_bits = left_shift_one(second_half_bits);
+    println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
+
+    //reassemble
+    let assembled: u16 = 0b0000_0000_0000_0000;
+
+    12
 }
 
 fn main() {
@@ -334,11 +349,9 @@ fn main() {
     //P10
     cr.init_key_str = permute_ten(cr.init_key_str);
 
-    //Circular Left Shift (LS-1) on first 5 bits of P10
-    circular_left_shift(&cr.init_key_str, 1);
+    //Circular Left Shift (LS-1) on both bit halves of P10
+    circular_left_shift(&cr.init_key_str);
 
-    //Circular Left Shift (LS-1) on last 5 bits of P10
-    //circular_left_shift(&cr.init_key_str, 2);
     //P8 (picks and permutes 8 out of 10 bits) = K1
 
 }
