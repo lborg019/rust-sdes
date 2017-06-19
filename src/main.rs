@@ -24,6 +24,8 @@ struct Crypto {
     init_vec: u8,
     init_key_str: String,
     init_vec_str: String,
+    key_one: u8,
+    key_two: u8,
     original_file: String,
     output_file: String
 }
@@ -251,6 +253,31 @@ fn permute_ten(init_key_str: String) -> String
     permuted_string
 }
 
+fn circular_left_shift(init_key_str: &String, half: usize) -> u8 
+{
+    let mut first_half_str = init_key_str.clone();
+    let second_half_str = first_half_str.split_off(5);
+
+    let mut first_half_bits  = 0b0000_0000;
+    let mut second_half_bits = 0b0000_0000;
+
+    //catch the half we want to work on
+    match half {
+        1 => {
+            println!("performing shift on: {:?}", first_half_str);
+            first_half_bits = vec_to_bits(&first_half_str);
+            first_half_bits = first_half_bits.rotate_left(4);
+            println!("fuck me: {:05b}_bin", first_half_bits);
+            return first_half_bits
+        },
+        2 => {
+            println!("performing shift on: {:?}", second_half_str);
+        },
+        _ => println!("invalid half")
+    }
+    162
+}
+
 fn main() {
 
     if check_arguments() == false
@@ -264,6 +291,8 @@ fn main() {
         init_vec: 0b00000000,
         init_key_str: String::new(),
         init_vec_str: String::new(),
+        key_one: 0b00000000,
+        key_two: 0b00000000,
         original_file: String::new(),
         output_file: String::new()
     };
@@ -301,13 +330,15 @@ fn main() {
      * KEY GENERATION *
      * * * * * * * * */
 
+    println!("key generation:");
     //P10
-    permute_ten(cr.init_key_str);
+    cr.init_key_str = permute_ten(cr.init_key_str);
 
     //Circular Left Shift (LS-1) on first 5 bits of P10
+    circular_left_shift(&cr.init_key_str, 1);
 
     //Circular Left Shift (LS-1) on last 5 bits of P10
-
+    //circular_left_shift(&cr.init_key_str, 2);
     //P8 (picks and permutes 8 out of 10 bits) = K1
 
 }
