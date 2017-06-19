@@ -32,6 +32,8 @@ struct Crypto {
     init_vec_str: String,
     key_one: u8,
     key_two: u8,
+    r_first_half: u8,
+    r_second_half: u8,
     original_file: String,
     output_file: String
 }
@@ -259,6 +261,26 @@ fn permute_ten(init_key_str: String) -> String
     permuted_string
 }
 
+fn permute_eight(shifted_key: u16) -> String
+{
+    let init_key_str = format!("{:010b}", shifted_key);
+    let mut permuted_chars: Vec<char> = Vec::new();
+    let mut permuted_string = String::with_capacity(8);
+    let p_ten: [usize;8] = [6,3,7,4,8,5,10,9];
+
+    for x in 0..8 {
+        permuted_chars.push(init_key_str.chars().nth(p_ten[x]-1).unwrap() as char);
+    }
+
+    for c in &permuted_chars // to avoid 'move' errors, we pass a reference
+    {                        // as '&permuted_chars' and dereference '*c'
+        permuted_string.push(*c);
+    }
+
+    println!("{:?} ==P8=> {:?}", init_key_str, permuted_string);
+    permuted_string
+}
+
 fn left_shift_one(value: u8) -> u8
 {
     let mut mask: u8 = 31; //0001 1111
@@ -267,30 +289,35 @@ fn left_shift_one(value: u8) -> u8
     return mask & side;
 }
 
-fn circular_left_shift(init_key_str: &String) -> u8
+fn circular_left_shift(init_key_str: &String) -> u16
 {
     let mut first_half_str = init_key_str.clone();
     let second_half_str = first_half_str.split_off(5);
 
-    let mut first_half_bits: u8 =  0b0000_0000;
-    let mut second_half_bits: u8 = 0b0000_0000;
+    //let mut first_half_bits: u8 =  0b0000_0000;
+    //let mut second_half_bits: u8 = 0b0000_0000;
 
     // e.g.: 10000 01100
     
     //LS1 on first half: 10000 -> 00001
-    first_half_bits = vec_to_bits(&first_half_str);
+    let first_half_bits = vec_to_bits(&first_half_str);
     let first_rotated_bits = left_shift_one(first_half_bits);
     println!("{:05b} =LS1=> {:05b}_bin", first_half_bits, first_rotated_bits);
 
     //LS1 on second half: 01100 -> 11000
-    second_half_bits = vec_to_bits(&second_half_str);
+    let second_half_bits = vec_to_bits(&second_half_str);
     let second_rotated_bits = left_shift_one(second_half_bits);
     println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
 
     //reassemble
-    let assembled: u16 = 0b0000_0000_0000_0000;
-
-    12
+    let mut assembled_str = String::new();
+    let first_half = format!("{:05b}", first_rotated_bits);
+    let second_half = format!("{:05b}", second_rotated_bits);
+    assembled_str.push_str(&first_half);
+    assembled_str.push_str(&second_half);
+    let assembled = key_to_bits(&assembled_str);
+    println!("assembled: {:010b}_bin", assembled);
+    assembled
 }
 
 fn main() {
@@ -302,12 +329,14 @@ fn main() {
 
     let mut cr = Crypto {
         flag: ' ',
-        init_key: 0b0000000000000000,
-        init_vec: 0b00000000,
+        init_key: 0b0000_0000_0000_0000,
+        init_vec: 0b0000_0000,
         init_key_str: String::new(),
         init_vec_str: String::new(),
-        key_one: 0b00000000,
-        key_two: 0b00000000,
+        key_one: 0b0000_0000,
+        key_two: 0b0000_0000,
+        r_first_half: 0b0000_0000,
+        r_second_half: 0b0000_0000,
         original_file: String::new(),
         output_file: String::new()
     };
@@ -335,23 +364,24 @@ fn main() {
         _ => std::process::exit(1)
     }
 
-    println!("cr: {:?} {:010b} {:08b} {:?} {:?}", cr.flag, 
+    /*println!("cr: {:?} {:010b} {:08b} {:?} {:?}", cr.flag, 
                                                   cr.init_key, 
                                                   cr.init_vec,
                                                   cr.original_file,
-                                                  cr.output_file);
+                                                  cr.output_file);*/
 
     /* * * * * * * * * *
      * KEY GENERATION *
      * * * * * * * * */
-
     println!("key generation:");
     //P10
     cr.init_key_str = permute_ten(cr.init_key_str);
 
     //Circular Left Shift (LS-1) on both bit halves of P10
-    circular_left_shift(&cr.init_key_str);
+    let shifted_key = circular_left_shift(&cr.init_key_str);    
 
-    //P8 (picks and permutes 8 out of 10 bits) = K1
+    //P8
+    cr.key_one = vec_to_bits(&permute_eight(shifted_key));
+    println!("sub_key_1: {:08b}", cr.key_one);
 
 }
