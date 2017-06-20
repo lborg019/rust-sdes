@@ -4,6 +4,13 @@ use std::path::Path;
 use std::char;
 
 /*
+SDES:
+ciphertext = IP^{-1} (fk_2(SW(fk_1(IP(plaintext)))))
+plaintext  = IP^{-1} (fk_1(SW(fk_2(IP(plaintext)))))
+where:
+K_1 = P8(Shift(P10(key)))
+K_2 = P8(Shift(Shift(P10(key))))
+
 vector: 10101010
 key:    0111111101
 
@@ -13,9 +20,9 @@ byte 2: 00100011  -> 00001011
 plain                cipher
 00000001 00100011 -> 11110100 00001011
 
-% cargo run [-d] <init_key> <init_vector> <original_file> <result_file>
-cargo run d 0111111101 10101010 file1 file2 //decrypts
-cargo run d 1010000010 10101010 file1 file2
+=> cargo run [d] <init_key> <init_vector> <original_file> <result_file>
+=> cargo run d 0111111101 10101010 file1 file2 //decrypts
+=> cargo run d 1010000010 10101010 file1 file2
 
 key: 01111_11101
 01111_11101 =p10=> 11111_10011
@@ -266,10 +273,10 @@ fn permute_eight(shifted_key: u16) -> String
     let init_key_str = format!("{:010b}", shifted_key);
     let mut permuted_chars: Vec<char> = Vec::new();
     let mut permuted_string = String::with_capacity(8);
-    let p_ten: [usize;8] = [6,3,7,4,8,5,10,9];
+    let p_eight: [usize;8] = [6,3,7,4,8,5,10,9];
 
     for x in 0..8 {
-        permuted_chars.push(init_key_str.chars().nth(p_ten[x]-1).unwrap() as char);
+        permuted_chars.push(init_key_str.chars().nth(p_eight[x]-1).unwrap() as char);
     }
 
     for c in &permuted_chars // to avoid 'move' errors, we pass a reference
@@ -281,12 +288,25 @@ fn permute_eight(shifted_key: u16) -> String
     permuted_string
 }
 
+fn permute_four(four_bit: u8) -> u8
+{
+    let mut result: u8 = 0b0000_0000;
+    let p_four: [usize; 4] = [2,0,1,3];
+    for x in 0..4 {
+        result <<= 1;
+        if four_bit & (1 << p_four[x]) == 1{ 
+            result |= 1;
+        }
+    } 
+    result
+}
+
 fn left_shift_one(value: u8) -> u8
 {
     let mask: u8 = 31; //0001 1111
     let side = (value <<1) | (value >> (5 - 1));
-    
-    return mask & side;
+
+    mask & side
 }
 
 fn left_shift_two(value: u8) -> u8
@@ -294,7 +314,15 @@ fn left_shift_two(value: u8) -> u8
     let mask: u8 = 31; //0001 1111
     let side = (value << 2) | (value >> (5 - 2));
 
-    return mask & side;
+    mask & side
+}
+
+fn left_shift_four(value: u8) -> u8 
+{
+    let mask: u8 = 240; //0000 1111
+    let side = (value << 4) | (value >> (4 - 4));
+
+    mask & side
 }
 
 fn reassemble(first_rotated_bits: u8, second_rotated_bits: u8) -> u16
@@ -338,6 +366,173 @@ fn circular_left_shift(init_key_str: &String) -> (u16, u8, u8)
     println!("assembled: {:010b}_bin", assembled);
 
     return (assembled, first_rotated_bits, second_rotated_bits);
+}
+
+fn initial_permutation() -> u8 {
+    // IP    [2,6,3,1,4,8,5,7]
+    2
+
+}
+
+fn inverse_initial_permutation() -> u8 {
+    // IP^-1 [4,1,3,5,7,2,8,6]
+    2
+}
+
+fn expansion_permutation(four_bit_str: String) -> u8 {
+    
+    //E/P [4,1,2,3,2,3,4,1]
+    //string -> EP -> u8
+    //let init_key_str = format!("{:010b}", shifted_key);
+
+    //  do this with bitshifts instead!
+    
+    let mut permuted_chars: Vec<char> = Vec::new();
+    let mut permuted_string = String::with_capacity(8);
+    let p_eight: [usize;8] = [4,1,2,3,2,3,4,1];
+
+    for x in 0..8 {
+        permuted_chars.push(four_bit_str.chars().nth(p_eight[x]-1).unwrap() as char);
+    }
+
+    for c in &permuted_chars // to avoid 'move' errors, we pass a reference
+    {                        // as '&permuted_chars' and dereference '*c'
+        permuted_string.push(*c);
+    }
+
+    println!("{:?} ==E/P=> {:?}", four_bit_str, permuted_string);
+    let ret = vec_to_bits(&permuted_string);
+    ret
+}
+
+fn fk(eight_bit: String, sk: u8) -> u8
+{
+
+    // split byte in string form
+    let mut left = eight_bit.clone();
+    let right = left.split_off(4).clone();
+    let left_bits = vec_to_bits(&left);
+    let right_bits = vec_to_bits(&right);
+    println!("L: {:?}, R: {:?}", left, right);
+    
+    let exp_perm: u8 = expansion_permutation(right);
+    
+    // XOR(eight_bit, SK)
+    let xord = sk ^ exp_perm;
+    println!("xord {:08b}", xord);
+
+    // [next step might be useless]:
+    // create 2D matrix
+    /*    
+        [00] [01] [02] [03]
+        [10] [11] [12] [13]
+    */
+
+    /*
+    let mut mat = [[0 as u8, 0 as u8, 0 as u8, 0 as u8],
+                   [0 as u8, 0 as u8, 0 as u8, 0 as u8]];
+
+    let xord_str = format!("{:08b}", xord);
+
+    // fill first matrix
+    for x in 0..3 {
+        match xord_str.chars().nth(x).unwrap() {
+            '1' => mat[0][x] = 0b0000_0001,
+            '0' => mat[0][x] = 0b0000_0000,
+            _ => println!("Error on first matrix")
+        }
+    }
+
+    for x in 4..7 {
+        match xord_str.chars().nth(x).unwrap() {
+            '1' => mat[1][x-4] = 0b0000_0001,
+            '0' => mat[1][x-4] = 0b0000_0000,
+            _ => println!("Error on first matrix")
+        }
+    }
+    println!("{:?}", mat);*/
+    
+
+    // define Sboxes:
+    let sbox_zero = [[1,0,3,2],
+                     [3,2,1,0],
+                     [0,2,1,3],
+                     [3,1,3,2]];
+
+    let sbox_one = [[0,1,2,3],
+                     [2,0,1,3],
+                     [3,0,1,0],
+                     [2,1,0,3]];
+
+    /*
+        SBOX ACCESS:
+
+        [00][03] => 2-bit <int> => Sbox_Zero's row
+        [01][02] => 2-bit <int> => Sbox_Zero's col
+
+        [10][13] => 2-bit <int> => Sbox_One's row
+        [11][12] => 2-bit <int> => Sbox_One's col
+    */
+
+    /* * * * * * *
+     * SBOX ZERO *
+     * * * * * * */
+     let mut temp = 0;
+    // row:
+    if xord & (1 << 4) == 1 { temp |= 1 << 0; }
+    if xord & (1 << 7) == 1 { temp |= 1 << 1; }
+    let s_zero_row = temp;
+    // column:
+    temp = 0; // (reset)
+    if xord & (1 << 6) == 1 { temp |= 1 << 1; }
+    if xord & (1 << 5) == 1 { temp |= 1 << 0; }
+    let s_zero_col = temp;
+
+    /* * * * * * *
+     *  SBOX ONE *
+     * * * * * * */
+    // row:
+    temp = 0;
+    if xord & (1 << 3) == 1 {  temp |= 1 << 1; }
+    if xord & (1 << 0) == 1 {  temp |= 1 << 0; }
+    let s_one_row = temp;
+    // column:
+    temp = 0;
+    if xord & (1 << 2) == 1 {  temp |= 1 << 1; }
+    if xord & (1 << 1) == 1 {  temp |= 1 << 0; }
+    let s_one_col = temp;
+
+    let sbox_zero_val = sbox_zero[s_zero_row][s_zero_col]; //2 bits
+    let sbox_one_val = sbox_one[s_one_row][s_one_col]; //2 bits
+
+    let mut p_four = 0b0000_0000;
+
+    // set bit 0 
+    if sbox_zero_val & (1 << 0) == 1{ p_four |= 1 << 0; }
+    // set bit 1
+    if sbox_zero_val & (1 << 1) == 1{ p_four |= 1 << 1; }
+
+    // set bit 2    
+    if sbox_one_val & (1 << 0) == 1{ p_four |= 1 << 2; }
+    //set bit 3
+    if sbox_one_val & (1 << 1) == 1{ p_four |= 1 << 3; }
+    
+    // F(R, SK):
+    p_four = permute_four(p_four);
+    println!("P4: {:04b}_bin", p_four);
+
+    // L + p_four
+    //let left_bits = vec_to_bits(&left);
+    //let right_bits = vec_to_bits(&right);
+    println!("L: {:04b}_bin", left_bits);
+
+    let left_xor_fk = left_bits ^ p_four;
+    println!("X: {:04b}_bin", left_xor_fk);
+
+    //p4 p4 p4 p4 , R R R R (R should be intact)
+    let byte = left_shift_four(left_xor_fk) | right_bits;
+    println!("{:08b}_bin", byte);
+    byte
 }
 
 fn main() {
@@ -427,5 +622,8 @@ fn main() {
     /* * * * * * * *
      * ENCRYPTION  *
      * * * * * * * */
-
+     println!(":::::encryption:::::");
+     let input = String::from("11110101");
+     fk(input, cr.key_one); //sk1
+     println!(":::::encryption:::::");
 }
