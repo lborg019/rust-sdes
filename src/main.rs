@@ -283,19 +283,38 @@ fn permute_eight(shifted_key: u16) -> String
 
 fn left_shift_one(value: u8) -> u8
 {
-    let mut mask: u8 = 31; //0001 1111
+    let mask: u8 = 31; //0001 1111
     let side = (value <<1) | (value >> (5 - 1));
     
     return mask & side;
 }
 
-fn circular_left_shift(init_key_str: &String) -> u16
+fn left_shift_two(value: u8) -> u8
+{
+    let mask: u8 = 31; //0001 1111
+    let side = (value << 2) | (value >> (5 - 2));
+
+    return mask & side;
+}
+
+fn reassemble(first_rotated_bits: u8, second_rotated_bits: u8) -> u16
+{
+    let mut assembled_str = String::new();
+
+    let first_half = format!("{:05b}", first_rotated_bits);
+    let second_half = format!("{:05b}", second_rotated_bits);
+
+    assembled_str.push_str(&first_half);
+    assembled_str.push_str(&second_half);
+
+    let assembled = key_to_bits(&assembled_str);
+    assembled
+}
+
+fn circular_left_shift(init_key_str: &String) -> (u16, u8, u8)
 {
     let mut first_half_str = init_key_str.clone();
     let second_half_str = first_half_str.split_off(5);
-
-    //let mut first_half_bits: u8 =  0b0000_0000;
-    //let mut second_half_bits: u8 = 0b0000_0000;
 
     // e.g.: 10000 01100
     
@@ -310,14 +329,15 @@ fn circular_left_shift(init_key_str: &String) -> u16
     println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
 
     //reassemble
-    let mut assembled_str = String::new();
+    /*let mut assembled_str = String::new();
     let first_half = format!("{:05b}", first_rotated_bits);
     let second_half = format!("{:05b}", second_rotated_bits);
     assembled_str.push_str(&first_half);
-    assembled_str.push_str(&second_half);
-    let assembled = key_to_bits(&assembled_str);
+    assembled_str.push_str(&second_half);*/
+    let assembled = reassemble(first_rotated_bits, second_rotated_bits);
     println!("assembled: {:010b}_bin", assembled);
-    assembled
+
+    return (assembled, first_rotated_bits, second_rotated_bits);
 }
 
 fn main() {
@@ -373,15 +393,39 @@ fn main() {
     /* * * * * * * * * *
      * KEY GENERATION *
      * * * * * * * * */
-    println!("key generation:");
+    println!("\n:::key generation:::");
     //P10
     cr.init_key_str = permute_ten(cr.init_key_str);
 
-    //Circular Left Shift (LS-1) on both bit halves of P10
-    let shifted_key = circular_left_shift(&cr.init_key_str);    
+    // Circular Left Shift (LS-1) on both bit halves of P10
+    // triplet: (key, LS1(first), LS1(second))
+    let triplet = circular_left_shift(&cr.init_key_str);
 
-    //P8
-    cr.key_one = vec_to_bits(&permute_eight(shifted_key));
-    println!("sub_key_1: {:08b}", cr.key_one);
+    // P8 on the shifted 10 bit key (triplet.0)
+    // Sk1
+    cr.key_one = vec_to_bits(&permute_eight(triplet.0));
+    println!("SUB_KEY_1: {:08b}", cr.key_one);
+
+    // pass halves from triplet to struct
+    cr.r_first_half = triplet.1;
+    cr.r_second_half = triplet.2;
+    //println!("check for halves: {:05b} {:05b}", cr.r_first_half, cr.r_second_half);
+
+    // perform LS2 on both halves and reassemble
+    let first_ls_two = left_shift_two(cr.r_first_half);
+    let second_ls_two = left_shift_two(cr.r_second_half);
+
+    println!("{:05b} =LS2=> {:05b}_bin", cr.r_first_half, first_ls_two);
+    println!("{:05b} =LS2=> {:05b}_bin", cr.r_second_half, second_ls_two);
+
+    // Sk2
+    cr.key_two = vec_to_bits(&permute_eight(reassemble(first_ls_two, second_ls_two)));
+    println!("SUB_KEY_2: {:08b}", cr.key_two);
+
+    println!(":::key generation:::\n");
+
+    /* * * * * * * *
+     * ENCRYPTION  *
+     * * * * * * * */
 
 }
