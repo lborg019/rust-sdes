@@ -538,26 +538,26 @@ fn fk(eight_bit: String, sk: u8) -> u8
 
     println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
 
-    let mut p_four_str = String::new();
-    p_four_str.push_str(&format!("{:02b}", sbox_zero_val));
-    p_four_str.push_str(&format!("{:02b}", sbox_one_val));
+    //let mut p_four_str = String::new();
+    //p_four_str.push_str(&format!("{:02b}", sbox_zero_val));
+    //p_four_str.push_str(&format!("{:02b}", sbox_one_val));
 
-    println!("p4_str: {:?}", p_four_str);
+    //println!("p4_str: {:?}", p_four_str);
 
     let mut p_four = 0b0000_0000;
 
     // set bit 0 
-    if sbox_zero_val & (1 << 0) == 1{ p_four |= 1 << 0; }
+    if sbox_one_val & (1 << 0) == 0b0000_0001 { p_four = p_four | 1 << 0; }
     // set bit 1
-    if sbox_zero_val & (1 << 1) == 1{ p_four |= 1 << 1; }
+    if sbox_one_val & (1 << 1) == 0b0000_0010 { p_four = p_four | 1 << 1; }
 
     // set bit 2    
-    if sbox_one_val & (1 << 0) == 1{ p_four |= 1 << 2; }
+    if sbox_zero_val & (1 << 0) == 0b0000_0001 { p_four = p_four | 1 << 2; }
     //set bit 3
-    if sbox_one_val & (1 << 1) == 1{ p_four |= 1 << 3; }
+    if sbox_zero_val & (1 << 1) == 0b0000_0010 { p_four = p_four | 1 << 3; }
     
     // F(R, SK):
-    println!("P4: {:08b}_bin", p_four);
+    println!("P4: {:04b}_bin", p_four);
     p_four = permute_four(p_four);
     println!("PP4: {:04b}_bin", p_four);
 
