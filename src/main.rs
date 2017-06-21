@@ -1,6 +1,7 @@
 use std::env;
 use std::fs::File;
 use std::io::Read;
+use std::io::prelude::*;
 use std::str;
 use std::path::Path;
 use std::char;
@@ -434,7 +435,7 @@ fn expansion_permutation(four_bit_str: String) -> u8 {
         permuted_string.push(*c);
     }
 
-    println!("{:?} ==E/P=> {:?}", four_bit_str, permuted_string);
+    //println!("{:?} ==E/P=> {:?}", four_bit_str, permuted_string);
     let ret = vec_to_bits(&permuted_string);
     ret
 }
@@ -467,12 +468,12 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     
 
     // split byte in string form
-    let mut left = format!("{:04b}", left_bits);
+    //let left = format!("{:04b}", left_bits);
     //let right = left.split_off(4).clone();
     let right = format!("{:04b}", right_bits);
     //let left_bits = vec_to_bits(&left);
     //let right_bits = vec_to_bits(&right);
-    println!("L: {:?}, R: {:?}", left, right);
+    //println!("L: {:?}, R: {:?}", left, right);
 
     /*
         1 2 3 4        4 1 2 3 2 3 4 1
@@ -486,7 +487,7 @@ fn fk(eight_bit: u8, sk: u8) -> u8
         XR: 0 0 0 0 1 1 1 0
      */
     let xord = sk ^ exp_perm;
-    println!("xord {:08b}", xord);
+    //println!("xord {:08b}", xord);
     
     // define Sboxes:
     let sbox_zero = [[1,0,3,2],
@@ -548,7 +549,7 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     let sbox_zero_val = sbox_zero[s_zero_row][s_zero_col]; //2 bits
     let sbox_one_val = sbox_one[s_one_row][s_one_col]; //2 bits
 
-    println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
+    //println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
 
     let mut p_four = 0b0000_0000;
 
@@ -563,18 +564,18 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     if sbox_zero_val & (1 << 1) == 0b0000_0010 { p_four = p_four | 1 << 3; }
     
     // F(R, SK):
-    println!("P4: {:04b}_bin", p_four);
+    //println!("P4: {:04b}_bin", p_four);
     p_four = permute_four(p_four);
-    println!("PP4: {:04b}_bin", p_four);
+    //println!("PP4: {:04b}_bin", p_four);
 
-    println!("L: {:04b}_bin", left_bits);
+    //println!("L: {:04b}_bin", left_bits);
 
     let left_xor_fk = left_bits ^ p_four;
-    println!("X: {:04b}_bin", left_xor_fk);
+    //println!("X: {:04b}_bin", left_xor_fk);
 
     //p4 p4 p4 p4 , R R R R (R should be intact)
     let byte = left_shift_four(left_xor_fk) | right_bits;
-    println!("{:08b}_bin", byte);
+    //println!("{:08b}_bin", byte);
     byte
 }
 
@@ -666,7 +667,35 @@ fn main() {
             /* * * * * * * *
             * DECRYPTION  *
             * * * * * * * */
-            // read the ciphertext1
+            //FIRST ROUND
+            let mut writer = File::create(cr.output_file).unwrap();
+            // read the cipher text
+            let mut file = File::open(cr.original_file).unwrap();
+            let mut buf = [0u8]; // 8 bit buffer
+            file.read(&mut buf).unwrap();
+            println!("{:?}", buf);
+
+            let mut cipher_byte = buf[0] as u8;
+            //let mut cbc_byte = cipher_byte.clone();
+            let mut decrypted_byte = inverse_ip(fk(sw(fk(ip(cipher_byte), cr.key_two)), cr.key_one));
+            let mut plain_byte = decrypted_byte ^ cr.init_vec;
+
+            //write plain_byte to file:
+            println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
+
+            //REMAINING ROUNDS
+            while let Ok(bytes_read) = file.read(&mut buf) {
+                if bytes_read == 0 { break; }
+
+                cipher_byte = buf[0] as u8;
+                decrypted_byte = inverse_ip(fk(sw(fk(ip(cipher_byte), cr.key_two)), cr.key_one));
+                plain_byte = decrypted_byte ^ cipher_byte;
+                
+                //write cipher to file
+                println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
+            }
+
+
             // byte = dec(ciphertext1)
             // CBC:
             // plaintext = XOR(init_vec, byte)
@@ -680,7 +709,8 @@ fn main() {
             /* * * * * * * *
             * ENCRYPTION  *
             * * * * * * * */
-            //first step
+            //FIRST ROUND
+            let mut writer = File::create(cr.output_file).unwrap();
             // read the plain text
             let mut file = File::open(cr.original_file).unwrap();
             let mut buf = [0u8]; // 8 bit buffer
@@ -691,15 +721,29 @@ fn main() {
             let mut plain_byte = buf[0] as u8;
             let mut cbc_byte = plain_byte ^ cr.init_vec;
 
-            //let cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
+            //enc
+            let mut cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
 
-            //second step
+            //write cipher to file
+            println!("wrote: {:?}", writer.write(&[cipher]).unwrap());
+
+            //REMAINING ROUNGS
             // read plain text
-            // CBC step:
-            //cbc_byte = cipher ^ plain_byte;
+            while let Ok(bytes_read) = file.read(&mut buf) {
+                if bytes_read == 0 { break; }
+                
+                plain_byte = buf[0] as u8;
 
-            // enc(byte)
-            // ciphertext2
+                // CBC step:
+                cbc_byte = plain_byte ^ cipher;
+
+                // enc
+                cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
+                
+                //write cipher to file
+                println!("wrote: {:?}", writer.write(&[cipher]).unwrap());
+            }
+            
         },
         _ => println!("no operation mode recognized")
     }
@@ -708,12 +752,12 @@ fn main() {
     //println!("b: {:08b}, ip(b): {:08b}, inverse_ip(ip(b)): {:08b}", b, ip(b), inverse_ip(ip(b)));
 
     //let input: u8 = 0b1111_0101;
-    println!(":::::encryption:::::");
+    /*println!(":::::encryption:::::");
     let input: u8 = 0b1111_0101;// String::from("11110101");
     let k = fk(input, cr.key_one); //sk1
     let l = fk(sw(k), cr.key_two); //sk2
     println!("\nfk1 byte: {:08b}", k);
     println!("fk2 byte: {:08b}", l);
-    println!(":::::encryption:::::");
+    println!(":::::encryption:::::");*/
 
 }
