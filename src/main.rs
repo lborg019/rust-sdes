@@ -405,6 +405,17 @@ fn expansion_permutation(four_bit_str: String) -> u8 {
     ret
 }
 
+fn sw(byte: u8) -> String
+{
+    let swap = byte.rotate_right(12);
+
+    let swap_str = format!("{:08b}", swap);
+    swap_str
+    //let mut b: u8 = 0b0000_1111;
+    //println!("SW: {:08b}", b);
+    //println!("SW: {:08b}", b.rotate_right(12));
+}
+
 fn fk(eight_bit: String, sk: u8) -> u8
 {
 
@@ -624,6 +635,10 @@ fn main() {
      * * * * * * * */
      println!(":::::encryption:::::");
      let input = String::from("11110101");
-     fk(input, cr.key_one); //sk1
+     //let input: u8 = 0b1111_0101;
+     let k = fk(input, cr.key_one); //sk1
+     let l = fk(sw(k), cr.key_two); //sk2
+     println!("\nfk1 byte: {:08b}", k);
+     println!("fk2 byte: {:08b}", l);
      println!(":::::encryption:::::");
 }
