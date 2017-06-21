@@ -291,14 +291,17 @@ fn permute_eight(shifted_key: u16) -> String
 fn permute_four(four_bit: u8) -> u8
 {
     let mut result: u8 = 0b0000_0000;
-    //let p_four: [usize; 4] = [2,0,1,3];
-    let p_four: [usize; 4] = [2,4,3,1];
+
+    let p_four: [(u8, u8); 4] = [(2, 0b0000_0100),
+                                 (0, 0b0000_0001),
+                                 (1, 0b0000_0010),
+                                 (3, 0b0000_1000)];
     for x in 0..4 {
-        result <<= 1;
-        if four_bit & (1 << p_four[x]) == 1{ 
-            result |= 1;
+        result = result << 1;
+        if four_bit & (1 << p_four[x].0) == p_four[x].1 { 
+            result = result | 1;
         }
-    } 
+    }
     result
 }
 
