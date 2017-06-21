@@ -291,7 +291,8 @@ fn permute_eight(shifted_key: u16) -> String
 fn permute_four(four_bit: u8) -> u8
 {
     let mut result: u8 = 0b0000_0000;
-    let p_four: [usize; 4] = [2,0,1,3];
+    //let p_four: [usize; 4] = [2,0,1,3];
+    let p_four: [usize; 4] = [2,4,3,1];
     for x in 0..4 {
         result <<= 1;
         if four_bit & (1 << p_four[x]) == 1{ 
@@ -356,12 +357,6 @@ fn circular_left_shift(init_key_str: &String) -> (u16, u8, u8)
     let second_rotated_bits = left_shift_one(second_half_bits);
     println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
 
-    //reassemble
-    /*let mut assembled_str = String::new();
-    let first_half = format!("{:05b}", first_rotated_bits);
-    let second_half = format!("{:05b}", second_rotated_bits);
-    assembled_str.push_str(&first_half);
-    assembled_str.push_str(&second_half);*/
     let assembled = reassemble(first_rotated_bits, second_rotated_bits);
     println!("assembled: {:010b}_bin", assembled);
 
@@ -425,45 +420,62 @@ fn fk(eight_bit: String, sk: u8) -> u8
     let left_bits = vec_to_bits(&left);
     let right_bits = vec_to_bits(&right);
     println!("L: {:?}, R: {:?}", left, right);
-    
+
+    /*
+        1 2 3 4        4 1 2 3 2 3 4 1
+        0 1 0 1  =EP=> 1 0 1 0 1 0 1 0
+    */
     let exp_perm: u8 = expansion_permutation(right);
     
-    // XOR(eight_bit, SK)
+    /*
+        SK: 1 0 1 0 0 1 0 0
+        EP: 1 0 1 0 1 0 1 0
+        XR: 0 0 0 0 1 1 1 0
+     */
     let xord = sk ^ exp_perm;
     println!("xord {:08b}", xord);
 
-    // [next step might be useless]:
-    // create 2D matrix
     /*    
+        Test1:
         [00] [01] [02] [03]
+        0    0    0    0
+
         [10] [11] [12] [13]
+        1    1    1    0
+
+        SBOX 0
+        [00][03] = 00 (0) row 0
+        [01][02] = 00 (0) column 0 
+        [1] 01
+
+        SBOX 1
+        [10][13] = 10 (2) row 2
+        [11][12] = 11 (3) column 3
+        [0] 00
+
+        result = 0100
+
+        p4: 1 2 3 4  -> 2 4 3 1
+            0 1 0 0     1 0 0 0
+        
+        Test2:
+        [00] [01] [02] [03]
+        1    0    1    1
+
+        [10] [11] [12] [13]
+        1    1    0    0
+
+        SBOX 0
+        [00][03] = 11 (3) row 3
+        [01][02] = 01 (1) col 1
+        [1] 01
+
+        SBOX 1
+        [10][13] = 10 (2) row 2
+        [11][12] = 10 (2) col 2
+        [1] 01
     */
-
-    /*
-    let mut mat = [[0 as u8, 0 as u8, 0 as u8, 0 as u8],
-                   [0 as u8, 0 as u8, 0 as u8, 0 as u8]];
-
-    let xord_str = format!("{:08b}", xord);
-
-    // fill first matrix
-    for x in 0..3 {
-        match xord_str.chars().nth(x).unwrap() {
-            '1' => mat[0][x] = 0b0000_0001,
-            '0' => mat[0][x] = 0b0000_0000,
-            _ => println!("Error on first matrix")
-        }
-    }
-
-    for x in 4..7 {
-        match xord_str.chars().nth(x).unwrap() {
-            '1' => mat[1][x-4] = 0b0000_0001,
-            '0' => mat[1][x-4] = 0b0000_0000,
-            _ => println!("Error on first matrix")
-        }
-    }
-    println!("{:?}", mat);*/
     
-
     // define Sboxes:
     let sbox_zero = [[1,0,3,2],
                      [3,2,1,0],
@@ -471,9 +483,9 @@ fn fk(eight_bit: String, sk: u8) -> u8
                      [3,1,3,2]];
 
     let sbox_one = [[0,1,2,3],
-                     [2,0,1,3],
-                     [3,0,1,0],
-                     [2,1,0,3]];
+                    [2,0,1,3],
+                    [3,0,1,0],
+                    [2,1,0,3]];
 
     /*
         SBOX ACCESS:
@@ -483,20 +495,28 @@ fn fk(eight_bit: String, sk: u8) -> u8
 
         [10][13] => 2-bit <int> => Sbox_One's row
         [11][12] => 2-bit <int> => Sbox_One's col
+
+        Reminder:
+        (1 << 0) -> 000001
+        (1 << 1) -> 000010
+        (1 << 2) -> 000100
+        (1 << 3) -> 001000
+        (1 << 4) -> 010000
+        (1 << 5) -> 100000
     */
 
     /* * * * * * *
      * SBOX ZERO *
      * * * * * * */
-     let mut temp = 0;
+    let mut temp = 0;
     // row:
-    if xord & (1 << 4) == 1 { temp |= 1 << 0; }
-    if xord & (1 << 7) == 1 { temp |= 1 << 1; }
+    if xord & (1 << 4) == 0b0001_0000 { temp = temp | 1 << 0; }
+    if xord & (1 << 7) == 0b1000_0000 { temp = temp | 1 << 1; }
     let s_zero_row = temp;
     // column:
     temp = 0; // (reset)
-    if xord & (1 << 6) == 1 { temp |= 1 << 1; }
-    if xord & (1 << 5) == 1 { temp |= 1 << 0; }
+    if xord & (1 << 6) == 0b0100_0000 { temp = temp | 1 << 1; }
+    if xord & (1 << 5) == 0b0010_0000 { temp = temp | 1 << 0; }
     let s_zero_col = temp;
 
     /* * * * * * *
@@ -504,17 +524,25 @@ fn fk(eight_bit: String, sk: u8) -> u8
      * * * * * * */
     // row:
     temp = 0;
-    if xord & (1 << 3) == 1 {  temp |= 1 << 1; }
-    if xord & (1 << 0) == 1 {  temp |= 1 << 0; }
+    if xord & (1 << 3) == 0b0000_1000 {  temp = temp | 1 << 1; }
+    if xord & (1 << 0) == 0b0000_0001 {  temp = temp | 1 << 0; }
     let s_one_row = temp;
     // column:
     temp = 0;
-    if xord & (1 << 2) == 1 {  temp |= 1 << 1; }
-    if xord & (1 << 1) == 1 {  temp |= 1 << 0; }
+    if xord & (1 << 2) == 0b0000_0100 {  temp = temp | 1 << 1; }
+    if xord & (1 << 1) == 0b0000_0010 {  temp = temp | 1 << 0; }
     let s_one_col = temp;
 
     let sbox_zero_val = sbox_zero[s_zero_row][s_zero_col]; //2 bits
     let sbox_one_val = sbox_one[s_one_row][s_one_col]; //2 bits
+
+    println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
+
+    let mut p_four_str = String::new();
+    p_four_str.push_str(&format!("{:02b}", sbox_zero_val));
+    p_four_str.push_str(&format!("{:02b}", sbox_one_val));
+
+    println!("p4_str: {:?}", p_four_str);
 
     let mut p_four = 0b0000_0000;
 
@@ -529,8 +557,9 @@ fn fk(eight_bit: String, sk: u8) -> u8
     if sbox_one_val & (1 << 1) == 1{ p_four |= 1 << 3; }
     
     // F(R, SK):
+    println!("P4: {:08b}_bin", p_four);
     p_four = permute_four(p_four);
-    println!("P4: {:04b}_bin", p_four);
+    println!("PP4: {:04b}_bin", p_four);
 
     // L + p_four
     //let left_bits = vec_to_bits(&left);
@@ -636,9 +665,37 @@ fn main() {
      println!(":::::encryption:::::");
      let input = String::from("11110101");
      //let input: u8 = 0b1111_0101;
+
+     // read the plain text
+     // CBC step:
+     // byte = XOR(init_vec, plaintext)
+     // enc(byte)
+     // ciphertext1
+
+     // read plain text
+     // CBC step:
+     // byte = XOR(ciphertext1, plaintext)
+     // enc(byte)
+     // ciphertext2
+
      let k = fk(input, cr.key_one); //sk1
      let l = fk(sw(k), cr.key_two); //sk2
      println!("\nfk1 byte: {:08b}", k);
      println!("fk2 byte: {:08b}", l);
      println!(":::::encryption:::::");
+
+    /* * * * * * * *
+     * DECRYPTION  *
+     * * * * * * * */
+
+     // read the ciphertext1
+     // byte = dec(ciphertext1)
+     // CBC:
+     // plaintext = XOR(init_vec, byte)
+
+     // read the ciphertext2
+     // byte = dec(ciphertext2)
+     // CBC:
+     // plaintext = XOR(ciphertext1, byte)
+
 }
