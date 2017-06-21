@@ -292,6 +292,7 @@ fn permute_four(four_bit: u8) -> u8
 {
     let mut result: u8 = 0b0000_0000;
 
+    //[2 4 3 1]
     let p_four: [(u8, u8); 4] = [(2, 0b0000_0100),
                                  (0, 0b0000_0001),
                                  (1, 0b0000_0010),
@@ -366,15 +367,48 @@ fn circular_left_shift(init_key_str: &String) -> (u16, u8, u8)
     return (assembled, first_rotated_bits, second_rotated_bits);
 }
 
-fn initial_permutation() -> u8 {
+fn ip(byte: u8) -> u8 {
     // IP    [2,6,3,1,4,8,5,7]
-    2
+    let mut result: u8 = 0b0000_0000;
 
+    //{6,2,5,7,4,0,3,1}
+    let ip: [(u8, u8); 8] = [(6, 0b0100_0000),
+                             (2, 0b0000_0100),
+                             (5, 0b0010_0000),
+                             (7, 0b1000_0000),
+                             (4, 0b0001_0000), 
+                             (0, 0b0000_0001),
+                             (3, 0b0000_1000),
+                             (1, 0b0000_0010),];
+    for x in 0..8 {
+        result = result << 1;
+        if byte & (1 << ip[x].0) == ip[x].1 { 
+            result = result | 1;
+        }
+    }
+    result
 }
 
-fn inverse_initial_permutation() -> u8 {
+fn inverse_ip(byte: u8) -> u8 {
     // IP^-1 [4,1,3,5,7,2,8,6]
-    2
+    let mut result: u8 = 0b0000_0000;
+
+    //{4,7,5,3,1,6,0,2}
+    let ip: [(u8, u8); 8] = [(4, 0b0001_0000),
+                             (7, 0b1000_0000),
+                             (5, 0b0010_0000),
+                             (3, 0b0000_1000),
+                             (1, 0b0000_0010), 
+                             (6, 0b0100_0000),
+                             (0, 0b0000_0001),
+                             (2, 0b0000_0100),];
+    for x in 0..8 {
+        result = result << 1;
+        if byte & (1 << ip[x].0) == ip[x].1 { 
+            result = result | 1;
+        }
+    }
+    result
 }
 
 fn expansion_permutation(four_bit_str: String) -> u8 {
@@ -437,47 +471,6 @@ fn fk(eight_bit: String, sk: u8) -> u8
      */
     let xord = sk ^ exp_perm;
     println!("xord {:08b}", xord);
-
-    /*    
-        Test1:
-        [00] [01] [02] [03]
-        0    0    0    0
-
-        [10] [11] [12] [13]
-        1    1    1    0
-
-        SBOX 0
-        [00][03] = 00 (0) row 0
-        [01][02] = 00 (0) column 0 
-        [1] 01
-
-        SBOX 1
-        [10][13] = 10 (2) row 2
-        [11][12] = 11 (3) column 3
-        [0] 00
-
-        result = 0100
-
-        p4: 1 2 3 4  -> 2 4 3 1
-            0 1 0 0     1 0 0 0
-        
-        Test2:
-        [00] [01] [02] [03]
-        1    0    1    1
-
-        [10] [11] [12] [13]
-        1    1    0    0
-
-        SBOX 0
-        [00][03] = 11 (3) row 3
-        [01][02] = 01 (1) col 1
-        [1] 01
-
-        SBOX 1
-        [10][13] = 10 (2) row 2
-        [11][12] = 10 (2) col 2
-        [1] 01
-    */
     
     // define Sboxes:
     let sbox_zero = [[1,0,3,2],
@@ -541,12 +534,6 @@ fn fk(eight_bit: String, sk: u8) -> u8
 
     println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
 
-    //let mut p_four_str = String::new();
-    //p_four_str.push_str(&format!("{:02b}", sbox_zero_val));
-    //p_four_str.push_str(&format!("{:02b}", sbox_one_val));
-
-    //println!("p4_str: {:?}", p_four_str);
-
     let mut p_four = 0b0000_0000;
 
     // set bit 0 
@@ -564,9 +551,6 @@ fn fk(eight_bit: String, sk: u8) -> u8
     p_four = permute_four(p_four);
     println!("PP4: {:04b}_bin", p_four);
 
-    // L + p_four
-    //let left_bits = vec_to_bits(&left);
-    //let right_bits = vec_to_bits(&right);
     println!("L: {:04b}_bin", left_bits);
 
     let left_xor_fk = left_bits ^ p_four;
@@ -686,6 +670,9 @@ fn main() {
      println!("\nfk1 byte: {:08b}", k);
      println!("fk2 byte: {:08b}", l);
      println!(":::::encryption:::::");
+
+     let b = 0b0000_1000;
+     println!("b: {:08b}, ip(b): {:08b}, inverse_ip(ip(b)): {:08b}", b, ip(b), inverse_ip(ip(b)));
 
     /* * * * * * * *
      * DECRYPTION  *
