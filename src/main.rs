@@ -1,4 +1,6 @@
 use std::env;
+use std::fs::File;
+use std::io::Read;
 use std::str;
 use std::path::Path;
 use std::char;
@@ -437,25 +439,39 @@ fn expansion_permutation(four_bit_str: String) -> u8 {
     ret
 }
 
-fn sw(byte: u8) -> String
+fn sw(byte: u8) -> u8
 {
     let swap = byte.rotate_right(12);
-
-    let swap_str = format!("{:08b}", swap);
-    swap_str
+    swap
     //let mut b: u8 = 0b0000_1111;
     //println!("SW: {:08b}", b);
     //println!("SW: {:08b}", b.rotate_right(12));
 }
 
-fn fk(eight_bit: String, sk: u8) -> u8
+fn fk(eight_bit: u8, sk: u8) -> u8
 {
+    let mut left_bits: u8 = 0b0000_0000;
+    let mut right_bits: u8 = 0b0000_0000;
+
+    //low end (right bits)
+    if eight_bit & (1 << 0) == 0b0000_0001 { right_bits = right_bits | 1 << 0; }
+    if eight_bit & (1 << 1) == 0b0000_0010 { right_bits = right_bits | 1 << 1; }
+    if eight_bit & (1 << 2) == 0b0000_0100 { right_bits = right_bits | 1 << 2; }
+    if eight_bit & (1 << 3) == 0b0000_1000 { right_bits = right_bits | 1 << 3; }
+
+    //high end (left bits)
+    if eight_bit & (1 << 4) == 0b0001_0000 { left_bits = left_bits | 1 << 0; }
+    if eight_bit & (1 << 5) == 0b0010_0000 { left_bits = left_bits | 1 << 1; }
+    if eight_bit & (1 << 6) == 0b0100_0000 { left_bits = left_bits | 1 << 2; }
+    if eight_bit & (1 << 7) == 0b1000_0000 { left_bits = left_bits | 1 << 3; }
+    
 
     // split byte in string form
-    let mut left = eight_bit.clone();
-    let right = left.split_off(4).clone();
-    let left_bits = vec_to_bits(&left);
-    let right_bits = vec_to_bits(&right);
+    let mut left = format!("{:04b}", left_bits);
+    //let right = left.split_off(4).clone();
+    let right = format!("{:04b}", right_bits);
+    //let left_bits = vec_to_bits(&left);
+    //let right_bits = vec_to_bits(&right);
     println!("L: {:?}, R: {:?}", left, right);
 
     /*
@@ -643,49 +659,61 @@ fn main() {
     // Sk2
     cr.key_two = vec_to_bits(&permute_eight(reassemble(first_ls_two, second_ls_two)));
     println!("SUB_KEY_2: {:08b}", cr.key_two);
-
     println!(":::key generation:::\n");
 
-    /* * * * * * * *
-     * ENCRYPTION  *
-     * * * * * * * */
-     println!(":::::encryption:::::");
-     let input = String::from("11110101");
-     //let input: u8 = 0b1111_0101;
+    match cr.flag {
+        'd' => {
+            /* * * * * * * *
+            * DECRYPTION  *
+            * * * * * * * */
+            // read the ciphertext1
+            // byte = dec(ciphertext1)
+            // CBC:
+            // plaintext = XOR(init_vec, byte)
 
-     // read the plain text
-     // CBC step:
-     // byte = XOR(init_vec, plaintext)
-     // enc(byte)
-     // ciphertext1
+            // read the ciphertext2
+            // byte = dec(ciphertext2)
+            // CBC:
+            // plaintext = XOR(ciphertext1, byte)
+        },
+        'e' => {
+            /* * * * * * * *
+            * ENCRYPTION  *
+            * * * * * * * */
+            //first step
+            // read the plain text
+            let mut file = File::open(cr.original_file).unwrap();
+            let mut buf = [0u8]; // 8 bit buffer
+            file.read(&mut buf).unwrap();
+            println!("{:?}", buf);
 
-     // read plain text
-     // CBC step:
-     // byte = XOR(ciphertext1, plaintext)
-     // enc(byte)
-     // ciphertext2
+            // CBC step:
+            let mut plain_byte = buf[0] as u8;
+            let mut cbc_byte = plain_byte ^ cr.init_vec;
 
-     let k = fk(input, cr.key_one); //sk1
-     let l = fk(sw(k), cr.key_two); //sk2
-     println!("\nfk1 byte: {:08b}", k);
-     println!("fk2 byte: {:08b}", l);
-     println!(":::::encryption:::::");
+            //let cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
 
-     let b = 0b0000_1000;
-     println!("b: {:08b}, ip(b): {:08b}, inverse_ip(ip(b)): {:08b}", b, ip(b), inverse_ip(ip(b)));
+            //second step
+            // read plain text
+            // CBC step:
+            //cbc_byte = cipher ^ plain_byte;
 
-    /* * * * * * * *
-     * DECRYPTION  *
-     * * * * * * * */
+            // enc(byte)
+            // ciphertext2
+        },
+        _ => println!("no operation mode recognized")
+    }
 
-     // read the ciphertext1
-     // byte = dec(ciphertext1)
-     // CBC:
-     // plaintext = XOR(init_vec, byte)
+    //let b = 0b0000_1000;
+    //println!("b: {:08b}, ip(b): {:08b}, inverse_ip(ip(b)): {:08b}", b, ip(b), inverse_ip(ip(b)));
 
-     // read the ciphertext2
-     // byte = dec(ciphertext2)
-     // CBC:
-     // plaintext = XOR(ciphertext1, byte)
+    //let input: u8 = 0b1111_0101;
+    println!(":::::encryption:::::");
+    let input: u8 = 0b1111_0101;// String::from("11110101");
+    let k = fk(input, cr.key_one); //sk1
+    let l = fk(sw(k), cr.key_two); //sk2
+    println!("\nfk1 byte: {:08b}", k);
+    println!("fk2 byte: {:08b}", l);
+    println!(":::::encryption:::::");
 
 }
