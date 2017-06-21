@@ -694,16 +694,6 @@ fn main() {
                 //write cipher to file
                 println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
             }
-
-
-            // byte = dec(ciphertext1)
-            // CBC:
-            // plaintext = XOR(init_vec, byte)
-
-            // read the ciphertext2
-            // byte = dec(ciphertext2)
-            // CBC:
-            // plaintext = XOR(ciphertext1, byte)
         },
         'e' => {
             /* * * * * * * *
