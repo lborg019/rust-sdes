@@ -24,14 +24,7 @@ plain                cipher
 00000001 00100011 -> 11110100 00001011
 
 => cargo run [d] <init_key> <init_vector> <original_file> <result_file>
-=> cargo run d 0111111101 10101010 file1 file2 //decrypts
-=> cargo run d 1010000010 10101010 file1 file2
-
-key: 01111_11101
-01111_11101 =p10=> 11111_10011
-[1: 11111] [2: 10011] 
-LS1(11111) => 11111
-LS1(10011) => 00111
+=> cargo run d 0111111101 10101010 file1 file2
 */
 
 struct Crypto {
@@ -473,13 +466,14 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     let right = format!("{:04b}", right_bits);
     //let left_bits = vec_to_bits(&left);
     //let right_bits = vec_to_bits(&right);
-    //println!("L: {:?}, R: {:?}", left, right);
+    //println!("L: {:04b}, R: {:04b}", left_bits, right_bits);
 
     /*
         1 2 3 4        4 1 2 3 2 3 4 1
         0 1 0 1  =EP=> 1 0 1 0 1 0 1 0
     */
     let exp_perm: u8 = expansion_permutation(right);
+    //println!("EP: {:08b}", exp_perm);
     
     /*
         SK: 1 0 1 0 0 1 0 0
@@ -668,7 +662,7 @@ fn main() {
             * DECRYPTION  *
             * * * * * * * */
             //FIRST ROUND
-            let mut writer = File::create(cr.output_file).unwrap();
+            /*let mut writer = File::create(cr.output_file).unwrap();
             // read the cipher text
             let mut file = File::open(cr.original_file).unwrap();
             let mut buf = [0u8]; // 8 bit buffer
@@ -693,13 +687,14 @@ fn main() {
                 
                 //write cipher to file
                 println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
-            }
+            }*/
         },
         'e' => {
             /* * * * * * * *
             * ENCRYPTION  *
             * * * * * * * */
             //FIRST ROUND
+            /*
             let mut writer = File::create(cr.output_file).unwrap();
             // read the plain text
             let mut file = File::open(cr.original_file).unwrap();
@@ -733,21 +728,43 @@ fn main() {
                 //write cipher to file
                 println!("wrote: {:?}", writer.write(&[cipher]).unwrap());
             }
-            
+            */
         },
         _ => println!("no operation mode recognized")
     }
 
-    //let b = 0b0000_1000;
-    //println!("b: {:08b}, ip(b): {:08b}, inverse_ip(ip(b)): {:08b}", b, ip(b), inverse_ip(ip(b)));
+    /*
+        SPECIFICATION:
+        plaintext:
+        [0000_0001] [0010_0011]
 
-    //let input: u8 = 0b1111_0101;
-    /*println!(":::::encryption:::::");
-    let input: u8 = 0b1111_0101;// String::from("11110101");
-    let k = fk(input, cr.key_one); //sk1
-    let l = fk(sw(k), cr.key_two); //sk2
-    println!("\nfk1 byte: {:08b}", k);
-    println!("fk2 byte: {:08b}", l);
-    println!(":::::encryption:::::");*/
+        bin_key: 0111111101
+        init_vector: 10101010
+    
+        ciphertext:
+        [1111_0100][0000_1011]
+    */
 
+    println!(":::::encryption:::::");
+    //testing first round
+    let mut input: u8 = 0b0000_0001;
+    //println!("plaintext: {:08b}", input);
+    //cbc
+    input = input ^ cr.init_vec;
+    //println!("cbc byte: {:08b}", input);
+    //encrypt
+    let cipher = inverse_ip(fk(sw(fk(ip(input), cr.key_one)), cr.key_two));
+    
+    //testing second round
+    let mut input_two: u8 = 0b0010_0011;
+    //println!("plaintext: {:08b}", input_two);
+    //cbc
+    input_two = input_two ^ cipher;
+    //println!("cbc byte: {:08b}", input_two);
+    //encrypt
+    let cipher2 = inverse_ip(fk(sw(fk(ip(input_two), cr.key_one)), cr.key_two));
+
+    println!("first byte: {:08b} -> {:08b}", 0b0000_0001, cipher);
+    println!("second byte: {:08b} -> {:08b}", 0b0010_0011, cipher2);
+    println!(":::::encryption:::::");
 }
