@@ -1,7 +1,7 @@
-use std::env;
+use std::{env, fs};
+use std::io::{Write};
 use std::fs::File;
 use std::io::Read;
-use std::io::prelude::*;
 use std::str;
 use std::path::Path;
 use std::char;
@@ -260,7 +260,7 @@ fn permute_ten(init_key_str: String) -> String
         permuted_string.push(*c);
     }
 
-    println!("{:?} ==P10=> {:?}", init_key_str, permuted_string);
+    //println!("{:?} ==P10=> {:?}", init_key_str, permuted_string);
     permuted_string
 }
 
@@ -280,7 +280,7 @@ fn permute_eight(shifted_key: u16) -> String
         permuted_string.push(*c);
     }
 
-    println!("{:?} ==P8=> {:?}", init_key_str, permuted_string);
+    //println!("{:?} ==P8=> {:?}", init_key_str, permuted_string);
     permuted_string
 }
 
@@ -350,15 +350,15 @@ fn circular_left_shift(init_key_str: &String) -> (u16, u8, u8)
     //LS1 on first half: 10000 -> 00001
     let first_half_bits = vec_to_bits(&first_half_str);
     let first_rotated_bits = left_shift_one(first_half_bits);
-    println!("{:05b} =LS1=> {:05b}_bin", first_half_bits, first_rotated_bits);
+    //println!("{:05b} =LS1=> {:05b}_bin", first_half_bits, first_rotated_bits);
 
     //LS1 on second half: 01100 -> 11000
     let second_half_bits = vec_to_bits(&second_half_str);
     let second_rotated_bits = left_shift_one(second_half_bits);
-    println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
+    //println!("{:05b} =LS1=> {:05b}_bin", second_half_bits, second_rotated_bits);
 
     let assembled = reassemble(first_rotated_bits, second_rotated_bits);
-    println!("assembled: {:010b}_bin", assembled);
+    //println!("assembled: {:010b}_bin", assembled);
 
     return (assembled, first_rotated_bits, second_rotated_bits);
 }
@@ -637,7 +637,7 @@ fn main() {
     // P8 on the shifted 10 bit key (triplet.0)
     // Sk1
     cr.key_one = vec_to_bits(&permute_eight(triplet.0));
-    println!("SUB_KEY_1: {:08b}", cr.key_one);
+    //println!("SUB_KEY_1: {:08b}", cr.key_one);
 
     // pass halves from triplet to struct
     cr.r_first_half = triplet.1;
@@ -648,87 +648,104 @@ fn main() {
     let first_ls_two = left_shift_two(cr.r_first_half);
     let second_ls_two = left_shift_two(cr.r_second_half);
 
-    println!("{:05b} =LS2=> {:05b}_bin", cr.r_first_half, first_ls_two);
-    println!("{:05b} =LS2=> {:05b}_bin", cr.r_second_half, second_ls_two);
+    //println!("{:05b} =LS2=> {:05b}_bin", cr.r_first_half, first_ls_two);
+    //println!("{:05b} =LS2=> {:05b}_bin", cr.r_second_half, second_ls_two);
 
     // Sk2
     cr.key_two = vec_to_bits(&permute_eight(reassemble(first_ls_two, second_ls_two)));
-    println!("SUB_KEY_2: {:08b}", cr.key_two);
-    println!(":::key generation:::\n");
+
+    println!("sk1: {:08b}", cr.key_one);
+    println!("sk2: {:08b}\n", cr.key_two);
 
     match cr.flag {
         'd' => {
             /* * * * * * * *
             * DECRYPTION  *
             * * * * * * * */
-            //FIRST ROUND
-            /*let mut writer = File::create(cr.output_file).unwrap();
-            // read the cipher text
-            let mut file = File::open(cr.original_file).unwrap();
-            let mut buf = [0u8]; // 8 bit buffer
-            file.read(&mut buf).unwrap();
-            println!("{:?}", buf);
+            //find out file size
+            let file_name = cr.original_file.clone();
+            let metadata = fs::metadata(file_name).unwrap();
+            let file_size = metadata.len();
+            println!("file size: {:?} bytes", file_size);
 
-            let mut cipher_byte = buf[0] as u8;
-            //let mut cbc_byte = cipher_byte.clone();
-            let mut decrypted_byte = inverse_ip(fk(sw(fk(ip(cipher_byte), cr.key_two)), cr.key_one));
-            let mut plain_byte = decrypted_byte ^ cr.init_vec;
+            //open file
+            let mut input_file = File::open(cr.original_file).unwrap();
+            let mut writer = File::create(cr.output_file).unwrap();
 
-            //write plain_byte to file:
-            println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
+            //create load file in memory
+            let mut contents: Vec<u8> = Vec::new();
+            let bytes = input_file.read_to_end(&mut contents).unwrap();
+            println!("read: {:?} bytes", bytes);
+            drop(input_file); //close
 
-            //REMAINING ROUNDS
-            while let Ok(bytes_read) = file.read(&mut buf) {
-                if bytes_read == 0 { break; }
+            for x in 0..file_size {
 
-                cipher_byte = buf[0] as u8;
-                decrypted_byte = inverse_ip(fk(sw(fk(ip(cipher_byte), cr.key_two)), cr.key_one));
-                plain_byte = decrypted_byte ^ cipher_byte;
-                
-                //write cipher to file
-                println!("wrote: {:?}", writer.write(&[plain_byte]).unwrap());
-            }*/
+                let cipher_byte = contents[x as usize];
+
+                let mut decrypted_byte = inverse_ip(fk(sw(fk(ip(cipher_byte), cr.key_two)), cr.key_one));
+
+                if x == 0 {
+                    //xor the first byte with the init_vec
+                    decrypted_byte = decrypted_byte ^ cr.init_vec;
+                }
+                else
+                {
+                    //xor subsequent bytes with preceding cipher
+                    let prev_cipher_byte = contents[(x-1) as usize];
+                    decrypted_byte = decrypted_byte ^ prev_cipher_byte;
+                }
+
+                //write to file
+                writer.write(&[decrypted_byte]).unwrap();
+                //writer.flush();
+            }
+            drop(writer);
+            println!("\ndecryption complete");
         },
         'e' => {
             /* * * * * * * *
             * ENCRYPTION  *
             * * * * * * * */
-            //FIRST ROUND
-            /*
+            //find out file size
+            let file_name = cr.original_file.clone();
+            let metadata = fs::metadata(file_name).unwrap();
+            let file_size = metadata.len();
+            println!("file size: {:?} bytes", file_size);
+
+            //open file
+            let mut input_file = File::open(cr.original_file).unwrap();
             let mut writer = File::create(cr.output_file).unwrap();
-            // read the plain text
-            let mut file = File::open(cr.original_file).unwrap();
-            let mut buf = [0u8]; // 8 bit buffer
-            file.read(&mut buf).unwrap();
-            println!("{:?}", buf);
 
-            // CBC step:
-            let mut plain_byte = buf[0] as u8;
-            let mut cbc_byte = plain_byte ^ cr.init_vec;
+            //create load file in memory
+            let mut contents: Vec<u8> = Vec::new();
+            let bytes = input_file.read_to_end(&mut contents).unwrap();
+            println!("read: {:?} bytes", bytes);
+            drop(input_file); //close
 
-            //enc
-            let mut cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
+            let mut cipher: u8 = 0b0000_0000; //cipher that gets block chained
+            for x in 0..file_size {
 
-            //write cipher to file
-            println!("wrote: {:?}", writer.write(&[cipher]).unwrap());
+                let mut plain_byte = contents[x as usize];
 
-            //REMAINING ROUNGS
-            // read plain text
-            while let Ok(bytes_read) = file.read(&mut buf) {
-                if bytes_read == 0 { break; }
-                
-                plain_byte = buf[0] as u8;
+                if x == 0 {
+                    //xor the first byte with the init_vec
+                    plain_byte = plain_byte ^ cr.init_vec;
+                }
+                else
+                {
+                    //xor subsequent bytes with preceding cipher
+                    plain_byte = plain_byte ^ cipher;
+                }
 
-                // CBC step:
-                cbc_byte = plain_byte ^ cipher;
+                //generate cipher
+                cipher = inverse_ip(fk(sw(fk(ip(plain_byte), cr.key_one)), cr.key_two));
 
-                // enc
-                cipher = inverse_ip(fk(sw(fk(ip(cbc_byte), cr.key_one)), cr.key_two));
-                
-                //write cipher to file
-                println!("wrote: {:?}", writer.write(&[cipher]).unwrap());
+                //write to file
+                writer.write(&[cipher]).unwrap();
+                //writer.flush();
             }
-            */
+            drop(writer);
+            println!("\nencryption complete");
         },
         _ => println!("no operation mode recognized")
     }
@@ -745,7 +762,7 @@ fn main() {
         [1111_0100][0000_1011]
     */
 
-    println!(":::::encryption:::::");
+    /*println!(":::::encryption:::::");
     //testing first round
     let mut input: u8 = 0b0000_0001;
     //println!("plaintext: {:08b}", input);
@@ -766,5 +783,5 @@ fn main() {
 
     println!("first byte: {:08b} -> {:08b}", 0b0000_0001, cipher);
     println!("second byte: {:08b} -> {:08b}", 0b0010_0011, cipher2);
-    println!(":::::encryption:::::");
+    println!(":::::encryption:::::");*/
 }
