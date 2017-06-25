@@ -433,6 +433,34 @@ fn expansion_permutation(four_bit_str: String) -> u8 {
     ret
 }
 
+fn expansion_permutation_bits(four_bit: u8) -> u8 {
+    
+    //E/P [4,1,2,3,2,3,4,1]
+    //E/P [3,0,1,2,1,2,3,0]  (-1)
+    //E/P [3,0,1,2, 1,2,3,0] split in halves
+    //E/P [1,2,3,0, 3,0,1,2] switch halves
+    //E/P [0,3,2,1  2,1,0,3] reverse each half
+    let mut permuted_bits = 0b0000_0000;
+    
+    let p_four: [(u8,u8);8] = [(0,0b0000_0001),
+                               (3,0b0000_1000),
+                               (2,0b0000_0100),
+                               (1,0b0000_0010),
+                               
+                               (2,0b0000_0100),
+                               (1,0b0000_0010),
+                               (0,0b0000_0001),
+                               (3,0b0000_1000)];
+                                
+    for x in 0..8 {
+        permuted_bits = permuted_bits << 1;
+        if four_bit & (1 << p_four[x].0) == p_four[x].1 {
+            permuted_bits = permuted_bits | 1;
+        }
+    }
+    permuted_bits
+}
+
 fn sw(byte: u8) -> u8
 {
     let swap = byte.rotate_right(12);
@@ -458,21 +486,13 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     if eight_bit & (1 << 5) == 0b0010_0000 { left_bits = left_bits | 1 << 1; }
     if eight_bit & (1 << 6) == 0b0100_0000 { left_bits = left_bits | 1 << 2; }
     if eight_bit & (1 << 7) == 0b1000_0000 { left_bits = left_bits | 1 << 3; }
-    
-
-    // split byte in string form
-    //let left = format!("{:04b}", left_bits);
-    //let right = left.split_off(4).clone();
-    let right = format!("{:04b}", right_bits);
-    //let left_bits = vec_to_bits(&left);
-    //let right_bits = vec_to_bits(&right);
-    //println!("L: {:04b}, R: {:04b}", left_bits, right_bits);
 
     /*
         1 2 3 4        4 1 2 3 2 3 4 1
         0 1 0 1  =EP=> 1 0 1 0 1 0 1 0
     */
-    let exp_perm: u8 = expansion_permutation(right);
+
+    let exp_perm: u8 = expansion_permutation_bits(right_bits);
     //println!("EP: {:08b}", exp_perm);
     
     /*
@@ -480,6 +500,7 @@ fn fk(eight_bit: u8, sk: u8) -> u8
         EP: 1 0 1 0 1 0 1 0
         XR: 0 0 0 0 1 1 1 0
      */
+     
     let xord = sk ^ exp_perm;
     //println!("xord {:08b}", xord);
     
@@ -542,9 +563,9 @@ fn fk(eight_bit: u8, sk: u8) -> u8
 
     let sbox_zero_val = sbox_zero[s_zero_row][s_zero_col]; //2 bits
     let sbox_one_val = sbox_one[s_one_row][s_one_col]; //2 bits
-
     //println!("s0: {:02b}, s1: {:02b}", sbox_zero_val, sbox_one_val);
 
+    // join bits obtained from sboxes:
     let mut p_four = 0b0000_0000;
 
     // set bit 0 
@@ -556,21 +577,23 @@ fn fk(eight_bit: u8, sk: u8) -> u8
     if sbox_zero_val & (1 << 0) == 0b0000_0001 { p_four = p_four | 1 << 2; }
     //set bit 3
     if sbox_zero_val & (1 << 1) == 0b0000_0010 { p_four = p_four | 1 << 3; }
-    
-    // F(R, SK):
-    //println!("P4: {:04b}_bin", p_four);
-    p_four = permute_four(p_four);
-    //println!("PP4: {:04b}_bin", p_four);
 
+    //println!("joined_bits: {:04b}_bin", p_four);    
+
+    // F(R, SK):
+
+    p_four = permute_four(p_four);
+    //println!("P4: {:04b}_bin", p_four);
     //println!("L: {:04b}_bin", left_bits);
 
     let left_xor_fk = left_bits ^ p_four;
     //println!("X: {:04b}_bin", left_xor_fk);
 
-    //p4 p4 p4 p4 , R R R R (R should be intact)
+    //p4 p4 p4 p4 , R R R R (R should be unchanged)
     let byte = left_shift_four(left_xor_fk) | right_bits;
     //println!("{:08b}_bin", byte);
-    byte
+
+    byte //return
 }
 
 fn main() {
