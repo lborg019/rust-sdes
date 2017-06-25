@@ -407,32 +407,6 @@ fn inverse_ip(byte: u8) -> u8 {
     result
 }
 
-fn expansion_permutation(four_bit_str: String) -> u8 {
-    
-    //E/P [4,1,2,3,2,3,4,1]
-    //string -> EP -> u8
-    //let init_key_str = format!("{:010b}", shifted_key);
-
-    //  do this with bitshifts instead!
-    
-    let mut permuted_chars: Vec<char> = Vec::new();
-    let mut permuted_string = String::with_capacity(8);
-    let p_eight: [usize;8] = [4,1,2,3,2,3,4,1];
-
-    for x in 0..8 {
-        permuted_chars.push(four_bit_str.chars().nth(p_eight[x]-1).unwrap() as char);
-    }
-
-    for c in &permuted_chars // to avoid 'move' errors, we pass a reference
-    {                        // as '&permuted_chars' and dereference '*c'
-        permuted_string.push(*c);
-    }
-
-    //println!("{:?} ==E/P=> {:?}", four_bit_str, permuted_string);
-    let ret = vec_to_bits(&permuted_string);
-    ret
-}
-
 fn expansion_permutation_bits(four_bit: u8) -> u8 {
     
     //E/P [4,1,2,3,2,3,4,1]
