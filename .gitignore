@@ -10,3 +10,6 @@ Cargo.lock
 **/*.rs.bk
 
 /.vscode
+
+# Mac's .DS_Store
+.DS_Store
