@@ -12,7 +12,7 @@ To better understand how the encryption algorithm and cbc work:
 ### Usage:
 Clone the program and run it with cargo (Rust's package manager)
 
-Both parties (sending (encrypting) and receiving (decrypting)) need to securely share a 10-digit binary symmetric key, and an 8-digit binary initialization vector. If the key, initialization and file match, encryption and decryption should work for any type of file.
+Both parties: sending (encrypting), and receiving (decrypting), need to securely share a 10-digit binary symmetric key, and an 8-digit binary initialization vector. If the key, initialization vector, and file match, encryption and decryption should work for any type of file.
 
 #### Run the program with the following arguments:
 Encryption:
