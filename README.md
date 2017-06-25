@@ -29,7 +29,7 @@ Decryption:
 ### File: andromeda.jpg (plaintext)
 <img src="./files/andromeda.jpg" width="400">
 
-### Encrypting `./files/andromeda.jpg` with key `0111111101` and initiatlization vector: `10101010`:
+### Encrypting `./files/andromeda.jpg` with key `0111111101` and initialization vector: `10101010`:
 ![encrypt](./info/encrypt.gif)
 
 ### File: andromeda.jpg.encrypted (ciphertext)
@@ -38,7 +38,7 @@ File is now meaningless to image viewers, opening it produces this:
 <img src="./info/andromeda-encrypted.png" width="500">
 
 
-### Decrypting file `andromeda.jpg.encrypted`
+### Decrypting file `./andromeda.jpg.encrypted` with key `0111111101` and initialization vector: `10101010`:
 ![decrypt](./info/decrypt.gif)
 
 Produces the original file. I tried to write the code as close to the description of the algorithm as possible for the sake of readability.
